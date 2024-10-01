@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Home</title>
+        <script src="/socket.io/socket.io.js"></script>
+    </head>
+    <body>
+        <p style="opacity: 0.5; font-size: 18px; margin: 0">Your id is</p>
+        <p style="margin: 0; font-size: 24px;" id="user-id"></p>
+
+        <div>
+
+            <input id="create-room-name-input">
+            <button onclick="onCreateRoom()">Create Room</button>
+
+            <input id="join-room-name-input">
+            <button onclick="onJoinRoom()">Join Room</button>
+        </div>
+
+        <p style="opacity: 0.5; font-size: 18px; margin: 0">Current Room</p>
+        <p style="margin: 0; font-size: 24px;" id="current-room-id"></p>
+
+        <input id="message-input" />
+        <button onclick="onSendMessage()">Send Message</button>
+
+        <ul id="messages" />
+    </body>
+
+    <script>
+
+        const messages = [];
+
+        const socket = io();
+
+        function onCreateRoom(){
+            const roomId = document.getElementById('create-room-name-input').value;
+            socket.emit('create-room', roomId);
+        }
+
+        function onJoinRoom (){
+            const roomId = document.getElementById('join-room-name-input').value;
+            socket.emit('join-room', roomId);
+        }
+
+        function onSendMessage(){
+            const message = document.getElementById('message-input').value;
+            const currentRoomId = document.getElementById('current-room-id').innerText;
+            socket.emit('send-message', currentRoomId, message);
+        }
+
+        socket.on('connect', () =>{
+            document.getElementById('user-id').innerText = socket.id;
+        });
+
+        socket.on('room-joined', (roomId) =>{
+            document.getElementById('current-room-id').innerText = roomId;
+            alert(`You have joined room ${roomId}`);
+        })
+
+        socket.on('create-room-failed', (reason) =>{
+            alert(`Create room failed because ${reason}`)
+        })
+
+        socket.on('user-joined-room', (roomId, userId) =>{
+            messages.push({
+                roomId,
+                message: `${userId} has joined this room`
+            })
+            renderMessages();
+            // alert(`${userId} has been joined this room`)
+        })
+
+        socket.on('receive-message', (roomId, userId, message) =>{
+            messages.push({
+                roomId,
+                message: `${userId} said ${message}`
+            })
+            renderMessages();
+            // alert(`${userId} said ${message}`)
+        })
+
+        function renderMessages(){
+            document.getElementById('messages').innerHTML = '';
+            const currentRoomId = document.getElementById('current-room-id').innerText;
+            messages.filter(msg => msg.roomId === currentRoomId).map(msg =>{
+                const messageNode = document.createElement('li');
+                messageNode.innerText = msg.message;
+                document.getElementById('messages').appendChild(messageNode);
+            })
+        }
+
+    </script>
+
+</html>

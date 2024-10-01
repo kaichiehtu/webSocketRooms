@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Home</title>
+        <!-- 引入 Socket.IO 客戶端庫 -->
+        <script src="/socket.io/socket.io.js"></script>
+        <!-- 簡單的樣式，定義消息列表外觀 -->
+        <style>
+            #messages {
+                list-style-type: none; /* 消息列表不顯示項目符號 */
+                padding: 0;
+                max-height: 300px; /* 設定消息列表的最大高度 */
+                overflow-y: auto; /* 當消息超過列表高度時允許垂直滾動 */
+                border: 1px solid #ccc; /* 列表邊框 */
+                margin-top: 10px; /* 與其他元素保持間距 */
+            }
+            #messages li {
+                padding: 5px; /* 每個消息項目的內間距 */
+                border-bottom: 1px solid #eee; /* 每條消息之間的分隔線 */
+            }
+        </style>
+    </head>
+    <body>
+        <!-- 顯示用戶連接後分配的 ID -->
+        <p style="opacity: 0.5; font-size: 18px; margin: 0">Your id is</p>
+        <p style="margin: 0; font-size: 24px;" id="user-id"></p>
+
+        <!-- 房間創建與加入的輸入框和按鈕 -->
+        <div>
+            <!-- 用戶輸入要創建的房間名稱 -->
+            <input id="create-room-name-input" placeholder="Enter room name">
+            <!-- 用戶點擊按鈕來創建房間，觸發 onCreateRoom 函數 -->
+            <button onclick="onCreateRoom()">Create Room</button>
+
+            <!-- 用戶輸入要加入的房間名稱 -->
+            <input id="join-room-name-input" placeholder="Enter room name">
+            <!-- 點擊按鈕來加入房間，觸發 onJoinRoom 函數 -->
+            <button onclick="onJoinRoom()">Join Room</button>
+        </div>
+
+        <!-- 顯示當前房間的 ID -->
+        <p style="opacity: 0.5; font-size: 18px; margin: 0">Current Room</p>
+        <p style="margin: 0; font-size: 24px;" id="current-room-id"></p>
+
+        <!-- 用戶輸入要發送的消息 -->
+        <input id="message-input" placeholder="Enter message" />
+        <!-- 點擊按鈕來發送消息，觸發 onSendMessage 函數 -->
+        <button onclick="onSendMessage()">Send Message</button>
+
+        <!-- 消息列表，顯示發送和接收的消息 -->
+        <ul id="messages"></ul>
+    </body>
+
+    <script>
+        // 初始化一個空的消息陣列，用來存儲所有的消息
+        const messages = [];
+
+        // 建立與 Socket.IO 的連接
+        const socket = io();
+
+        // 用戶點擊創建房間按鈕時觸發
+        function onCreateRoom(){
+            const roomId = document.getElementById('create-room-name-input').value; // 獲取房間名稱
+            if (!roomId.trim()) { // 檢查房間名稱是否為空
+                alert('Room name cannot be empty.'); // 提示用戶輸入有效的房間名稱
+                return;
+            }
+            socket.emit('create-room', roomId); // 向伺服器發送 'create-room' 事件，並傳送房間 ID
+        }
+
+        // 用戶點擊加入房間按鈕時觸發
+        function onJoinRoom (){
+            const roomId = document.getElementById('join-room-name-input').value; // 獲取房間名稱
+            if (!roomId.trim()) { // 檢查房間名稱是否為空
+                alert('Room name cannot be empty.'); // 提示用戶輸入有效的房間名稱
+                return;
+            }
+            socket.emit('join-room', roomId); // 向伺服器發送 'join-room' 事件，並傳送房間 ID
+        }
+
+        // 用戶點擊發送消息按鈕時觸發
+        function onSendMessage(){
+            const message = document.getElementById('message-input').value; // 獲取消息內容
+            const currentRoomId = document.getElementById('current-room-id').innerText; // 獲取當前房間 ID
+            if (!message.trim()) { // 檢查消息內容是否為空
+                alert('Message cannot be empty.'); // 提示用戶輸入有效的消息
+                return;
+            }
+            socket.emit('send-message', currentRoomId, message); // 向伺服器發送 'send-message' 事件，傳送房間 ID 和消息
+            document.getElementById('message-input').value = ''; // 發送後清空輸入框
+        }
+
+        // 當用戶連接成功後，伺服器會給用戶分配一個唯一的 ID，並顯示在頁面上
+        socket.on('connect', () =>{
+            document.getElementById('user-id').innerText = socket.id; // 將 socket ID 顯示在網頁上
+        });
+
+        // 當用戶成功加入房間時，伺服器會回傳房間 ID，並更新當前房間 ID
+        socket.on('room-joined', (roomId) =>{
+            document.getElementById('current-room-id').innerText = roomId; // 更新網頁上的當前房間 ID
+            alert(`You have joined room ${roomId}`); // 通知用戶已成功加入房間
+        });
+
+        // 當創建房間失敗時，伺服器會返回失敗原因
+        socket.on('create-room-failed', (reason) =>{
+            alert(`Create room failed because ${reason}`); // 顯示失敗原因
+        });
+
+        // 當有用戶加入房間時，伺服器會廣播消息
+        socket.on('user-joined-room', (roomId, userId) =>{
+            messages.push({
+                roomId, // 存儲房間 ID
+                message: `${userId} has joined this room` // 存儲加入房間的用戶 ID 和通知消息
+            });
+            renderMessages(); // 更新消息列表
+        });
+
+        // 當有用戶在房間中發送消息時，伺服器會廣播消息
+        socket.on('receive-message', (roomId, userId, message) =>{
+            messages.push({
+                roomId, // 存儲房間 ID
+                message: `${userId} said ${message}` // 存儲發送消息的用戶 ID 和消息內容
+            });
+            renderMessages(); // 更新消息列表
+        });
+
+        // 用於渲染並顯示消息列表的函數
+        function renderMessages(){
+            document.getElementById('messages').innerHTML = ''; // 清空現有的消息列表
+            const currentRoomId = document.getElementById('current-room-id').innerText; // 獲取當前房間 ID
+            // 過濾出屬於當前房間的消息，並逐條顯示
+            messages.filter(msg => msg.roomId === currentRoomId).map(msg =>{
+                const messageNode = document.createElement('li'); // 創建新的 <li> 元素來顯示消息
+                messageNode.innerText = msg.message; // 設定消息內容
+                document.getElementById('messages').appendChild(messageNode); // 將消息追加到 <ul> 列表中
+            });
+
+            // 當有新消息時，將消息列表滾動到最底部
+            const messageList = document.getElementById('messages');
+            messageList.scrollTop = messageList.scrollHeight; // 設置滾動條位置為列表的最底部
+        }
+    </script>
+
+</html>
