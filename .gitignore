@@ -1,0 +1,15 @@
+# 忽略編譯產物
+/build
+/dist
+
+# 忽略日誌文件
+*.log
+
+# 忽略所有的 .env 文件
+.env
+
+# 忽略 node_modules 目錄
+/node_modules
+
+# 忽略特定文件
+secret.txt
